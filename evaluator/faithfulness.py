@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from typing import TYPE_CHECKING, List, Optional
@@ -11,23 +12,7 @@ from evaluator.nli import NLIScorer
 from evaluator.types import ClaimVerdict
 
 if TYPE_CHECKING:
-    from openai import OpenAI as _OpenAIClient
-
-# Instantiated once on first use; avoids per-claim client construction overhead.
-_openai_client: Optional[_OpenAIClient] = None
-
-
-def _get_openai_client() -> Optional[_OpenAIClient]:
-    global _openai_client
-    if _openai_client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI
-                _openai_client = OpenAI(api_key=api_key)
-            except ImportError:
-                pass
-    return _openai_client
+    from openai import AsyncOpenAI as _AsyncOpenAIClient
 
 
 def split_into_claims(text: str) -> List[str]:
@@ -44,20 +29,23 @@ def split_into_claims(text: str) -> List[str]:
     return claims or [text]
 
 
-def _llm_support_judge(claim: str, contexts: List[str]) -> Optional[bool]:
-    client = _get_openai_client()
-    if client is None:
-        return None
-    context_text = "\n".join(contexts)
-    prompt = (
+def _make_judge_prompt(claim: str, contexts: List[str]) -> str:
+    return (
         "Given the following context chunks and a claim, answer only 'SUPPORTED' if the claim is "
         "clearly supported by the contexts, otherwise answer 'NOT SUPPORTED'.\n\n"
-        f"Contexts:\n{context_text}\n\nClaim:\n{claim}\n\nAnswer:"
+        f"Contexts:\n{chr(10).join(contexts)}\n\nClaim:\n{claim}\n\nAnswer:"
     )
+
+
+async def _async_judge_claim(
+    claim: str,
+    contexts: List[str],
+    client: _AsyncOpenAIClient,
+) -> Optional[bool]:
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": _make_judge_prompt(claim, contexts)}],
             max_tokens=16,
             temperature=0.0,
         )
@@ -65,6 +53,33 @@ def _llm_support_judge(claim: str, contexts: List[str]) -> Optional[bool]:
         return "supported" in text and "not supported" not in text
     except Exception:
         return None
+
+
+async def _batch_llm_judge(
+    claims: List[str],
+    contexts: List[str],
+    similarity: np.ndarray,
+    threshold: float,
+) -> List[bool]:
+    """Fire all claim judgments concurrently; fall back to cosine on failure."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+        try:
+            raw = await asyncio.gather(
+                *[_async_judge_claim(c, contexts, client) for c in claims]
+            )
+        finally:
+            await client.close()
+    except ImportError:
+        return [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+    return [
+        v if v is not None else float(similarity[i].max()) >= threshold
+        for i, v in enumerate(raw)
+    ]
 
 
 def score_faithfulness_detailed(
@@ -80,8 +95,8 @@ def score_faithfulness_detailed(
     Scoring priority per claim:
       1. NLI CrossEncoder (if nli_scorer provided) — detects contradictions, not
          just topic drift; most accurate offline method.
-      2. LLM-as-judge (if use_llm_judge and API key set) — high accuracy but
-         adds latency and cost.
+      2. LLM-as-judge (if use_llm_judge and API key set) — all claims judged
+         concurrently via AsyncOpenAI to minimise wall-clock latency.
       3. Cosine similarity fallback — fast, offline, topic-level only.
     """
     claims = split_into_claims(answer)
@@ -94,21 +109,31 @@ def score_faithfulness_detailed(
     if not context_sentences:
         return 0.0, [ClaimVerdict(claim=c, supported=False) for c in claims]
 
-    # Pre-compute cosine similarity matrix as fallback for all claims at once.
+    # Pre-compute cosine similarity matrix once — used as fallback in all paths.
     claim_embeddings = embedder.encode(claims)
     context_embeddings = embedder.encode(context_sentences)
     similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
 
     verdicts: List[ClaimVerdict] = []
-    for claim_idx, claim in enumerate(claims):
-        if nli_scorer is not None:
+
+    if nli_scorer is not None:
+        for claim in claims:
             is_supported = nli_scorer.is_entailed(context_sentences, claim, threshold=0.5)
-        elif use_llm_judge:
-            verdict = _llm_support_judge(claim, contexts)
-            is_supported = verdict if verdict is not None else float(similarity[claim_idx].max()) >= threshold
-        else:
+            verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+    elif use_llm_judge:
+        # asyncio.run works from a ThreadPoolExecutor worker because each worker
+        # thread has no running event loop of its own.
+        try:
+            supported_list = asyncio.run(
+                _batch_llm_judge(claims, contexts, similarity, threshold)
+            )
+        except RuntimeError:
+            supported_list = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+        verdicts = [ClaimVerdict(claim=c, supported=s) for c, s in zip(claims, supported_list)]
+    else:
+        for claim_idx, claim in enumerate(claims):
             is_supported = float(similarity[claim_idx].max()) >= threshold
-        verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+            verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
 
     score = sum(v.supported for v in verdicts) / len(verdicts)
     return score, verdicts
