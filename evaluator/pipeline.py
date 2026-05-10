@@ -14,6 +14,7 @@ from evaluator.clustering import cluster_failures, ClusterSummary
 from evaluator.embeddings import Embedder
 from evaluator.context_relevance import score_context_relevance
 from evaluator.faithfulness import score_faithfulness_detailed
+from evaluator.nli import NLIScorer
 from evaluator.precision import score_context_precision
 from evaluator.recall import score_context_recall
 from evaluator.relevance import score_answer_relevance
@@ -58,9 +59,10 @@ def _score_record(
     faith_threshold: float,
     precision_threshold: float,
     use_llm: bool,
+    nli_scorer: NLIScorer | None,
 ) -> ScoredRecord:
     faithfulness, claim_verdicts = score_faithfulness_detailed(
-        record.answer, record.contexts, embedder, faith_threshold, use_llm
+        record.answer, record.contexts, embedder, faith_threshold, use_llm, nli_scorer
     )
     relevance = score_answer_relevance(record.question, record.answer, embedder, use_llm=use_llm)
     precision = score_context_precision(
@@ -130,6 +132,10 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
     min_k = int(config.get("clustering", {}).get("min_k", 3))
     max_k = int(config.get("clustering", {}).get("max_k", 5))
     use_llm = bool(config.get("llm_as_judge", {}).get("enabled", False))
+    faith_method = config.get("faithfulness_method", "cosine")
+    nli_scorer: NLIScorer | None = None
+    if faith_method == "nli":
+        nli_scorer = NLIScorer(model_name=config.get("nli_model", "cross-encoder/nli-deberta-v3-small"))
 
     score_fn = functools.partial(
         _score_record,
@@ -137,6 +143,7 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
         faith_threshold=faith_threshold,
         precision_threshold=precision_threshold,
         use_llm=use_llm,
+        nli_scorer=nli_scorer,
     )
 
     # ThreadPoolExecutor parallelises the per-record numpy scoring work.

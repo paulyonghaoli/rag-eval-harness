@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
+from evaluator.nli import NLIScorer
 from evaluator.types import ClaimVerdict
 
 if TYPE_CHECKING:
@@ -72,8 +73,17 @@ def score_faithfulness_detailed(
     embedder: Embedder,
     threshold: float = 0.7,
     use_llm_judge: bool = False,
+    nli_scorer: Optional[NLIScorer] = None,
 ) -> tuple[float, List[ClaimVerdict]]:
-    """Return (score, per-claim verdicts) so callers can trace which claims failed."""
+    """Return (score, per-claim verdicts) so callers can trace which claims failed.
+
+    Scoring priority per claim:
+      1. NLI CrossEncoder (if nli_scorer provided) — detects contradictions, not
+         just topic drift; most accurate offline method.
+      2. LLM-as-judge (if use_llm_judge and API key set) — high accuracy but
+         adds latency and cost.
+      3. Cosine similarity fallback — fast, offline, topic-level only.
+    """
     claims = split_into_claims(answer)
     if not claims:
         return 0.0, []
@@ -84,19 +94,18 @@ def score_faithfulness_detailed(
     if not context_sentences:
         return 0.0, [ClaimVerdict(claim=c, supported=False) for c in claims]
 
+    # Pre-compute cosine similarity matrix as fallback for all claims at once.
     claim_embeddings = embedder.encode(claims)
     context_embeddings = embedder.encode(context_sentences)
     similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
 
     verdicts: List[ClaimVerdict] = []
     for claim_idx, claim in enumerate(claims):
-        is_supported = False
-        if use_llm_judge:
+        if nli_scorer is not None:
+            is_supported = nli_scorer.is_entailed(context_sentences, claim, threshold=0.5)
+        elif use_llm_judge:
             verdict = _llm_support_judge(claim, contexts)
-            if verdict is not None:
-                is_supported = verdict
-            else:
-                is_supported = float(similarity[claim_idx].max()) >= threshold
+            is_supported = verdict if verdict is not None else float(similarity[claim_idx].max()) >= threshold
         else:
             is_supported = float(similarity[claim_idx].max()) >= threshold
         verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
@@ -111,6 +120,9 @@ def score_faithfulness(
     embedder: Embedder,
     threshold: float = 0.7,
     use_llm_judge: bool = False,
+    nli_scorer: Optional[NLIScorer] = None,
 ) -> float:
-    score, _ = score_faithfulness_detailed(answer, contexts, embedder, threshold, use_llm_judge)
+    score, _ = score_faithfulness_detailed(
+        answer, contexts, embedder, threshold, use_llm_judge, nli_scorer
+    )
     return score

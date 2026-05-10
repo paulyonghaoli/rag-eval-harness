@@ -4,6 +4,8 @@ llm_as_judge:
 similarity_thresholds:
   faithfulness: 0.7
   precision: 0.5
+faithfulness_method: cosine   # cosine | nli  (nli uses CrossEncoder NLI model, more accurate)
+nli_model: cross-encoder/nli-deberta-v3-small
 clustering:
   min_k: 3
   max_k: 5
