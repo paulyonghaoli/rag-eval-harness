@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
+from evaluator.types import ClaimVerdict
 
 if TYPE_CHECKING:
     from openai import OpenAI as _OpenAIClient
@@ -65,6 +66,45 @@ def _llm_support_judge(claim: str, contexts: List[str]) -> Optional[bool]:
         return None
 
 
+def score_faithfulness_detailed(
+    answer: str,
+    contexts: List[str],
+    embedder: Embedder,
+    threshold: float = 0.7,
+    use_llm_judge: bool = False,
+) -> tuple[float, List[ClaimVerdict]]:
+    """Return (score, per-claim verdicts) so callers can trace which claims failed."""
+    claims = split_into_claims(answer)
+    if not claims:
+        return 0.0, []
+
+    context_sentences: List[str] = []
+    for ctx in contexts:
+        context_sentences.extend(split_into_claims(ctx))
+    if not context_sentences:
+        return 0.0, [ClaimVerdict(claim=c, supported=False) for c in claims]
+
+    claim_embeddings = embedder.encode(claims)
+    context_embeddings = embedder.encode(context_sentences)
+    similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
+
+    verdicts: List[ClaimVerdict] = []
+    for claim_idx, claim in enumerate(claims):
+        is_supported = False
+        if use_llm_judge:
+            verdict = _llm_support_judge(claim, contexts)
+            if verdict is not None:
+                is_supported = verdict
+            else:
+                is_supported = float(similarity[claim_idx].max()) >= threshold
+        else:
+            is_supported = float(similarity[claim_idx].max()) >= threshold
+        verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+
+    score = sum(v.supported for v in verdicts) / len(verdicts)
+    return score, verdicts
+
+
 def score_faithfulness(
     answer: str,
     contexts: List[str],
@@ -72,30 +112,5 @@ def score_faithfulness(
     threshold: float = 0.7,
     use_llm_judge: bool = False,
 ) -> float:
-    claims = split_into_claims(answer)
-    if not claims:
-        return 0.0
-
-    context_sentences: List[str] = []
-    for ctx in contexts:
-        context_sentences.extend(split_into_claims(ctx))
-    if not context_sentences:
-        return 0.0
-
-    claim_embeddings = embedder.encode(claims)
-    context_embeddings = embedder.encode(context_sentences)
-    similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
-    supported = 0
-
-    for claim_idx, claim in enumerate(claims):
-        if use_llm_judge:
-            verdict = _llm_support_judge(claim, contexts)
-            if verdict is True:
-                supported += 1
-                continue
-            if verdict is False:
-                continue
-        if float(similarity[claim_idx].max()) >= threshold:
-            supported += 1
-
-    return float(supported) / len(claims)
+    score, _ = score_faithfulness_detailed(answer, contexts, embedder, threshold, use_llm_judge)
+    return score

@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from evaluator.clustering import cluster_failures, ClusterSummary
 from evaluator.embeddings import Embedder
-from evaluator.faithfulness import score_faithfulness
+from evaluator.faithfulness import score_faithfulness_detailed
 from evaluator.precision import score_context_precision
 from evaluator.recall import score_context_recall
 from evaluator.relevance import score_answer_relevance
@@ -58,7 +58,7 @@ def _score_record(
     precision_threshold: float,
     use_llm: bool,
 ) -> ScoredRecord:
-    faithfulness = score_faithfulness(
+    faithfulness, claim_verdicts = score_faithfulness_detailed(
         record.answer, record.contexts, embedder, faith_threshold, use_llm
     )
     relevance = score_answer_relevance(record.question, record.answer, embedder, use_llm=use_llm)
@@ -80,6 +80,7 @@ def _score_record(
             relevance=round(relevance, 4),
             precision=round(precision, 4),
             recall=None if recall is None else round(recall, 4),
+            faithfulness_claims=claim_verdicts,
         ),
     )
 

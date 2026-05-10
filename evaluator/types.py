@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 
@@ -13,11 +13,18 @@ class EvalRecord:
 
 
 @dataclass
+class ClaimVerdict:
+    claim: str
+    supported: bool
+
+
+@dataclass
 class Scores:
     faithfulness: float
     relevance: float
     precision: float
     recall: Optional[float]
+    faithfulness_claims: List[ClaimVerdict] = field(default_factory=list)
 
 
 @dataclass
