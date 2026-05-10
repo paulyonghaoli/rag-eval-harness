@@ -1,0 +1,10 @@
+llm_as_judge:
+  enabled: false
+  openai_api_key_env: OPENAI_API_KEY
+similarity_thresholds:
+  faithfulness: 0.7
+  precision: 0.5
+clustering:
+  min_k: 3
+  max_k: 5
+embedder_model: all-MiniLM-L6-v2
