@@ -23,6 +23,7 @@ class Scores:
     faithfulness: float
     relevance: float
     precision: float
+    context_relevance: float
     recall: Optional[float]
     faithfulness_claims: List[ClaimVerdict] = field(default_factory=list)
 

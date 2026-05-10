@@ -27,4 +27,4 @@ def test_pipeline_generates_scores_and_report(tmp_path: Path) -> None:
     for line in lines:
         record = json.loads(line)
         assert "scores" in record
-        assert all(d in record["scores"] for d in ["faithfulness", "relevance", "precision", "recall"])
+        assert all(d in record["scores"] for d in ["faithfulness", "relevance", "precision", "context_relevance", "recall"])

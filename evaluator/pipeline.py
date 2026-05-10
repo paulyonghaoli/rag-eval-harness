@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from evaluator.clustering import cluster_failures, ClusterSummary
 from evaluator.embeddings import Embedder
+from evaluator.context_relevance import score_context_relevance
 from evaluator.faithfulness import score_faithfulness_detailed
 from evaluator.precision import score_context_precision
 from evaluator.recall import score_context_recall
@@ -65,6 +66,7 @@ def _score_record(
     precision = score_context_precision(
         record.answer, record.contexts, embedder, precision_threshold
     )
+    ctx_relevance = score_context_relevance(record.question, record.contexts, embedder)
     recall: float | None = None
     if record.ground_truth is not None:
         recall = score_context_recall(
@@ -79,6 +81,7 @@ def _score_record(
             faithfulness=round(faithfulness, 4),
             relevance=round(relevance, 4),
             precision=round(precision, 4),
+            context_relevance=round(ctx_relevance, 4),
             recall=None if recall is None else round(recall, 4),
             faithfulness_claims=claim_verdicts,
         ),
@@ -90,7 +93,7 @@ def build_report(
     records: List[ScoredRecord],
     clusters: List[ClusterSummary],
 ) -> None:
-    dims = ("faithfulness", "relevance", "precision", "recall")
+    dims = ("faithfulness", "relevance", "precision", "context_relevance", "recall")
     lines: List[str] = ["# RAG Evaluation Report", ""]
     for dim in dims:
         values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
@@ -158,7 +161,7 @@ def _print_summary(
     scores_path: Path,
     report_path: Path,
 ) -> None:
-    dims = ("faithfulness", "relevance", "precision", "recall")
+    dims = ("faithfulness", "relevance", "precision", "context_relevance", "recall")
     print("\n" + "=" * 50)
     print("RAG Evaluation Summary")
     print("=" * 50)

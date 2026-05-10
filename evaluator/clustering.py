@@ -32,7 +32,10 @@ def _failure_label(mean_scores: Dict[str, float]) -> str:
 def _severity(scores: Scores) -> float:
     return sum(
         1.0 - v
-        for v in (scores.faithfulness, scores.relevance, scores.precision, scores.recall)
+        for v in (
+            scores.faithfulness, scores.relevance, scores.precision,
+            scores.context_relevance, scores.recall,
+        )
         if v is not None
     )
 
@@ -73,7 +76,7 @@ def cluster_failures(
             dim: float(np.mean(
                 [v for i in indices if (v := getattr(records[i].scores, dim)) is not None] or [0.0]
             ))
-            for dim in ("faithfulness", "relevance", "precision", "recall")
+            for dim in ("faithfulness", "relevance", "precision", "context_relevance", "recall")
         }
 
         centroid = kmeans.cluster_centers_[cluster_id]
