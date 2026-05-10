@@ -22,6 +22,18 @@ def build_args() -> argparse.Namespace:
         default="config.yaml",
         help="Path to YAML config file.",
     )
+    parser.add_argument(
+        "--llm-judge",
+        action="store_true",
+        default=None,
+        help="Enable LLM-as-judge for answer relevance and faithfulness (requires OPENAI_API_KEY).",
+    )
+    parser.add_argument(
+        "--faithfulness-method",
+        choices=["cosine", "nli"],
+        default=None,
+        help="Faithfulness scoring method: 'cosine' (default) or 'nli' (CrossEncoder).",
+    )
     return parser.parse_args()
 
 
@@ -32,6 +44,13 @@ def main() -> None:
     config_path = Path(args.config)
 
     config = load_config(config_path)
+
+    # CLI flags override config file when explicitly provided.
+    if args.llm_judge is not None:
+        config.setdefault("llm_as_judge", {})["enabled"] = args.llm_judge
+    if args.faithfulness_method is not None:
+        config["faithfulness_method"] = args.faithfulness_method
+
     run_evaluation(input_path, output_dir, config)
 
 
