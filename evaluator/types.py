@@ -16,6 +16,7 @@ class EvalRecord:
 class ClaimVerdict:
     claim: str
     supported: bool
+    confidence: Optional[float] = None
 
 
 @dataclass

@@ -129,8 +129,11 @@ def score_faithfulness_detailed(
     if nli_scorer is not None:
         # NLI path: no cosine fallback needed, skip embedding computation entirely.
         for claim in claims:
-            is_supported = nli_scorer.is_entailed(context_sentences, claim, threshold=0.5)
-            verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+            scores = nli_scorer.entailment_scores(context_sentences, claim)
+            confidence = float(scores.max())
+            verdicts.append(ClaimVerdict(
+                claim=claim, supported=confidence >= 0.5, confidence=confidence,
+            ))
     else:
         # Cosine / LLM paths both need the similarity matrix (LLM uses it as a fallback).
         claim_embeddings = embedder.encode(claims)
@@ -149,8 +152,10 @@ def score_faithfulness_detailed(
             verdicts = [ClaimVerdict(claim=c, supported=s) for c, s in zip(claims, supported_list)]
         else:
             for claim_idx, claim in enumerate(claims):
-                is_supported = float(similarity[claim_idx].max()) >= threshold
-                verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+                confidence = float(similarity[claim_idx].max())
+                verdicts.append(ClaimVerdict(
+                    claim=claim, supported=confidence >= threshold, confidence=confidence,
+                ))
 
     score = sum(v.supported for v in verdicts) / len(verdicts)
     return score, verdicts
