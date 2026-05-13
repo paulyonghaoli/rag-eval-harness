@@ -111,6 +111,8 @@ results/scores.jsonl  results/report.md
 
 **Context Precision** — for each retrieved chunk, compute max cosine similarity to any sentence in the answer. `precision = chunks_above_threshold / total_chunks`. A low score means your retriever is pulling irrelevant documents.
 
+> **Note on definition:** RAGAS context precision is a rank-weighted precision@k that asks "were the relevant chunks ranked first?" This harness measures chunk-to-answer cosine contribution instead — a chunk counts as useful if any sentence in the final answer is semantically close to it. The RAGAS definition requires a ground truth relevance label per chunk; this definition is reference-free and computable offline.
+
 **Context Recall** — the ground truth is decomposed into atomic claims. Each claim is checked against the union of retrieved context sentences. `recall = covered_claims / total_claims`. Requires `ground_truth`; skipped when absent.
 
 ---
