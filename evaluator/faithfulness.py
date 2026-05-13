@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 from typing import TYPE_CHECKING, List, Optional
@@ -31,10 +32,30 @@ def split_into_claims(text: str) -> List[str]:
 
 def _make_judge_prompt(claim: str, contexts: List[str]) -> str:
     return (
-        "Given the following context chunks and a claim, answer only 'SUPPORTED' if the claim is "
-        "clearly supported by the contexts, otherwise answer 'NOT SUPPORTED'.\n\n"
-        f"Contexts:\n{chr(10).join(contexts)}\n\nClaim:\n{claim}\n\nAnswer:"
+        "Given the contexts and claim below, respond with exactly one JSON object.\n"
+        'If the claim is supported by the contexts: {"verdict": "SUPPORTED"}\n'
+        'Otherwise: {"verdict": "NOT_SUPPORTED"}\n\n'
+        f"Contexts:\n{chr(10).join(contexts)}\n\nClaim:\n{claim}\n\nJSON:"
     )
+
+
+def _parse_judge_verdict(raw: str) -> Optional[bool]:
+    """Parse a JSON verdict string from the LLM judge.
+
+    Returns True for SUPPORTED, False for NOT_SUPPORTED, None if the response
+    is malformed or contains an unexpected value (caller falls back to cosine).
+    Strict enum matching prevents 'unsupported' or other substrings being
+    misclassified as SUPPORTED.
+    """
+    try:
+        verdict = json.loads(raw).get("verdict", "").upper()
+    except (json.JSONDecodeError, AttributeError):
+        return None
+    if verdict == "SUPPORTED":
+        return True
+    if verdict == "NOT_SUPPORTED":
+        return False
+    return None
 
 
 async def _async_judge_claim(
@@ -46,11 +67,10 @@ async def _async_judge_claim(
         response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": _make_judge_prompt(claim, contexts)}],
-            max_tokens=16,
+            max_tokens=32,
             temperature=0.0,
         )
-        text = response.choices[0].message.content.strip().lower()
-        return "supported" in text and "not supported" not in text
+        return _parse_judge_verdict(response.choices[0].message.content.strip())
     except Exception:
         return None
 

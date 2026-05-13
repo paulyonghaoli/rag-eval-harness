@@ -1,5 +1,5 @@
 from evaluator.embeddings import Embedder
-from evaluator.faithfulness import score_faithfulness, split_into_claims
+from evaluator.faithfulness import _parse_judge_verdict, score_faithfulness, split_into_claims
 
 
 def test_split_into_claims_separates_sentences() -> None:
@@ -32,3 +32,25 @@ def test_faithfulness_empty_contexts() -> None:
 
     score = score_faithfulness(answer, [], embedder)
     assert score == 0.0
+
+
+# --- LLM verdict parser ---
+
+def test_parse_verdict_supported() -> None:
+    assert _parse_judge_verdict('{"verdict": "SUPPORTED"}') is True
+
+
+def test_parse_verdict_not_supported() -> None:
+    assert _parse_judge_verdict('{"verdict": "NOT_SUPPORTED"}') is False
+
+
+def test_parse_verdict_rejects_unsupported_substring() -> None:
+    # Old bug: "unsupported" contains "supported" — strict matching must reject it.
+    assert _parse_judge_verdict('"unsupported"') is None
+    assert _parse_judge_verdict('{"verdict": "unsupported"}') is None
+
+
+def test_parse_verdict_malformed_returns_none() -> None:
+    assert _parse_judge_verdict("not json at all") is None
+    assert _parse_judge_verdict("{}") is None
+    assert _parse_judge_verdict('{"verdict": "MAYBE"}') is None
