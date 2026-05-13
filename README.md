@@ -65,6 +65,7 @@ This harness gives you per-record and aggregate scores for each failure mode so 
 | **Answer Relevance** | Answer is coherent but doesn't address the question asked | User drops off, support ticket volume rises |
 | **Context Precision** | Retrieved chunks are mostly noise — low signal-to-token ratio | LLM answer quality degrades; token cost inflates with k |
 | **Context Recall** | Retrieved chunks are missing key information | Answer is incomplete; user calls support anyway |
+| **Context Relevance** | Retriever pulls semantically distant chunks regardless of answer utility | Silent topic drift; hard to diagnose without this metric |
 
 ---
 
@@ -118,18 +119,24 @@ results/scores.jsonl  results/report.md
 
 Requires [uv](https://docs.astral.sh/uv/).
 
+**Offline mode (no API key):**
+
 ```bash
 git clone https://github.com/paulyonghaoli/rag-eval-harness
 cd rag-eval-harness
-uv venv
-uv pip install -e ".[dev]"
+uv pip install -e .
 ```
 
-To enable the optional LLM-as-judge path:
+**LLM judge mode (optional):**
 
 ```bash
-echo "OPENAI_API_KEY=sk-..." > .env
-# then set llm_as_judge.enabled: true in config.yaml
+uv pip install -e ".[llm]"
+```
+
+**Development (includes pytest):**
+
+```bash
+uv pip install -e ".[dev]"
 ```
 
 ---
@@ -160,6 +167,69 @@ CLI flags override `config.yaml` when provided.
 
 ---
 
+## Outputs
+
+Every run writes three files to `--output`:
+
+| File | Contents |
+| --- | --- |
+| `scores.jsonl` | Per-record scores with per-claim faithfulness verdicts |
+| `report.md` | Aggregate mean ± std per metric + failure-mode cluster summaries |
+| `summary.json` | Machine-readable metrics + quality gate results (for CI) |
+
+`summary.json` format:
+
+```json
+{
+  "records_evaluated": 25,
+  "metrics": {
+    "faithfulness": {"mean": 0.62, "std": 0.47, "n": 25}
+  },
+  "quality_gates": null,
+  "passed": null
+}
+```
+
+---
+
+## CI quality gates
+
+Add to `config.yaml` to fail the run when any metric mean falls below a threshold:
+
+```yaml
+quality_gates:
+  faithfulness: 0.85
+  relevance: 0.70
+  precision: 0.60
+  context_relevance: 0.60
+  recall: 0.70
+```
+
+Exit code is 1 if any gate fails — wire directly into GitHub Actions:
+
+```yaml
+- name: RAG regression check
+  run: python main.py --input data/eval_set.jsonl --output results/
+```
+
+---
+
+## Baseline regression comparison
+
+Save a known-good `scores.jsonl` and fail future runs if faithfulness drops:
+
+```bash
+# Save baseline
+python main.py --input data/eval_set.jsonl --output baseline/
+
+# Later — fail if faithfulness drops more than 2 percentage points
+python main.py --input data/eval_set.jsonl --output results/ \
+  --baseline-scores baseline/scores.jsonl \
+  --min-delta-faithfulness -0.02
+```
+
+---
+
 ## Config
 
 ```yaml
@@ -175,6 +245,9 @@ clustering:
   min_k: 3                  # minimum k for k-means search
   max_k: 5                  # maximum k for k-means search
 embedder_model: all-MiniLM-L6-v2
+# quality_gates:            # uncomment to enable CI gate
+#   faithfulness: 0.85
+#   relevance: 0.70
 ```
 
 ---
