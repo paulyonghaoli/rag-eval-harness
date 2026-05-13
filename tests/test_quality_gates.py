@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from evaluator.pipeline import compute_summary, run_evaluation
+from evaluator.pipeline import compute_summary, load_baseline_means, run_evaluation
 from evaluator.types import Scores, ScoredRecord
 
 
@@ -44,6 +44,21 @@ def test_multiple_gates_all_must_pass() -> None:
     records = [_record("Q1", 0.9, 0.3)]
     summary = compute_summary(records, {"faithfulness": 0.85, "relevance": 0.70})
     assert summary["passed"] is False  # relevance 0.3 < 0.70
+
+
+def test_load_baseline_means(tmp_path: Path) -> None:
+    scores = [
+        {"scores": {"faithfulness": 0.8, "relevance": 0.7, "precision": 0.9,
+                    "context_relevance": 0.6, "recall": 0.5}},
+        {"scores": {"faithfulness": 0.6, "relevance": 0.9, "precision": 0.7,
+                    "context_relevance": 0.8, "recall": None}},
+    ]
+    p = tmp_path / "scores.jsonl"
+    p.write_text("\n".join(json.dumps(s) for s in scores), encoding="utf-8")
+    means = load_baseline_means(p)
+    assert abs(means["faithfulness"] - 0.7) < 1e-6   # mean(0.8, 0.6)
+    assert abs(means["relevance"] - 0.8) < 1e-6       # mean(0.7, 0.9)
+    assert means["recall"] == 0.5                      # only one non-null value
 
 
 def test_summary_json_written_to_output_dir(tmp_path: Path) -> None:
