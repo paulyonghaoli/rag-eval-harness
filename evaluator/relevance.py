@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import List, Optional
 
 import numpy as np
@@ -22,6 +23,16 @@ def _generate_questions_llm(
     )
     try:
         from openai import OpenAI
+    except ImportError:
+        warnings.warn(
+            "The 'openai' package is not installed. "
+            "Install it with: pip install 'rag-eval-harness[llm]'. "
+            "Falling back to offline answer relevance scoring.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return []
+    try:
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",

@@ -8,13 +8,16 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "scikit-learn>=1.4.0",
     "numpy>=1.26.0",
-    "openai>=1.0.0",
     "tqdm>=4.66.0",
 ]
 
 [project.optional-dependencies]
+llm = [
+    "openai>=1.0.0",
+]
 dev = [
     "pytest>=8.0.0",
+    "openai>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import warnings
 from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
@@ -95,6 +96,13 @@ async def _batch_llm_judge(
         finally:
             await client.close()
     except ImportError:
+        warnings.warn(
+            "The 'openai' package is not installed. "
+            "Install it with: pip install 'rag-eval-harness[llm]'. "
+            "Falling back to cosine similarity for faithfulness.",
+            UserWarning,
+            stacklevel=2,
+        )
         return cosine_fallback
     return [
         v if v is not None else float(similarity[i].max()) >= threshold
