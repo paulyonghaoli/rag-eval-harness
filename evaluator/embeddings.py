@@ -12,7 +12,18 @@ class Embedder:
 
     The cache avoids re-encoding identical strings when multiple scorers process
     the same record (faithfulness and recall both embed the same context sentences).
-    A threading lock makes encode() safe to call from concurrent threads.
+
+    Threading design: the lock guards only cache reads and writes, not the model
+    encoding call itself.  Two threads may redundantly encode the same text if
+    both see it as missing before either updates the cache — that is safe because
+    SentenceTransformer.encode() is deterministic (last write wins, values are
+    identical).  Keeping encoding outside the lock lets threads that need
+    *different* texts encode concurrently instead of serialising behind the lock.
+
+    Note: ThreadPoolExecutor in the pipeline mainly speeds up LLM-judge mode,
+    where each record's async API calls are I/O-bound.  For offline cosine-only
+    scoring, CPython's GIL still serialises CPU-bound PyTorch work, so threading
+    reduces scheduling overhead but does not achieve true parallelism on encode().
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
@@ -29,14 +40,17 @@ class Embedder:
 
     def encode(self, texts: Iterable[str]) -> np.ndarray:
         texts_list = list(texts)
+
         with self._lock:
             missing = [t for t in texts_list if t not in self._cache]
-            if missing:
-                vecs = self.model.encode(
-                    missing, convert_to_numpy=True, normalize_embeddings=True
-                )
+
+        if missing:
+            vecs = self.model.encode(missing, convert_to_numpy=True, normalize_embeddings=True)
+            with self._lock:
                 for text, vec in zip(missing, vecs):
                     self._cache[text] = vec
+
+        with self._lock:
             return np.stack([self._cache[t] for t in texts_list])
 
 
