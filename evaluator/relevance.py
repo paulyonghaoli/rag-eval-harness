@@ -1,36 +1,19 @@
 from __future__ import annotations
 
-import os
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 
 import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
 from evaluator.faithfulness import split_into_claims
 
-if TYPE_CHECKING:
-    from openai import OpenAI as _OpenAIClient
 
-# Instantiated once on first use; avoids per-call client construction overhead.
-_openai_client: Optional[_OpenAIClient] = None
-
-
-def _get_openai_client() -> Optional[_OpenAIClient]:
-    global _openai_client
-    if _openai_client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI
-                _openai_client = OpenAI(api_key=api_key)
-            except ImportError:
-                pass
-    return _openai_client
-
-
-def _generate_questions_llm(answer: str, count: int = 3) -> List[str]:
-    client = _get_openai_client()
-    if client is None:
+def _generate_questions_llm(
+    answer: str,
+    count: int,
+    openai_api_key: Optional[str],
+) -> List[str]:
+    if not openai_api_key:
         return []
     prompt = (
         "Generate three concise, distinct questions that would be answered by the following text. "
@@ -38,6 +21,8 @@ def _generate_questions_llm(answer: str, count: int = 3) -> List[str]:
         f"Text:\n{answer}\n"
     )
     try:
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
@@ -56,6 +41,7 @@ def score_answer_relevance(
     answer: str,
     embedder: Embedder,
     use_llm: bool = False,
+    openai_api_key: Optional[str] = None,
 ) -> float:
     """Score how well the answer addresses the question.
 
@@ -68,7 +54,7 @@ def score_answer_relevance(
     variance and are deliberately avoided here.
     """
     if use_llm:
-        synthetic_qs = _generate_questions_llm(answer, count=3)
+        synthetic_qs = _generate_questions_llm(answer, count=3, openai_api_key=openai_api_key)
         if synthetic_qs:
             q_emb = embedder.encode([question])
             sq_embs = embedder.encode(synthetic_qs)

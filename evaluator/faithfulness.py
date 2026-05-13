@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from typing import TYPE_CHECKING, List, Optional
 
@@ -80,14 +79,15 @@ async def _batch_llm_judge(
     contexts: List[str],
     similarity: np.ndarray,
     threshold: float,
+    openai_api_key: Optional[str] = None,
 ) -> List[bool]:
     """Fire all claim judgments concurrently; fall back to cosine on failure."""
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+    cosine_fallback = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+    if not openai_api_key:
+        return cosine_fallback
     try:
         from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
+        client = AsyncOpenAI(api_key=openai_api_key)
         try:
             raw = await asyncio.gather(
                 *[_async_judge_claim(c, contexts, client) for c in claims]
@@ -95,7 +95,7 @@ async def _batch_llm_judge(
         finally:
             await client.close()
     except ImportError:
-        return [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+        return cosine_fallback
     return [
         v if v is not None else float(similarity[i].max()) >= threshold
         for i, v in enumerate(raw)
@@ -109,6 +109,7 @@ def score_faithfulness_detailed(
     threshold: float = 0.7,
     use_llm_judge: bool = False,
     nli_scorer: Optional[NLIScorer] = None,
+    openai_api_key: Optional[str] = None,
 ) -> tuple[float, List[ClaimVerdict]]:
     """Return (score, per-claim verdicts) so callers can trace which claims failed.
 
@@ -145,7 +146,7 @@ def score_faithfulness_detailed(
         # thread has no running event loop of its own.
         try:
             supported_list = asyncio.run(
-                _batch_llm_judge(claims, contexts, similarity, threshold)
+                _batch_llm_judge(claims, contexts, similarity, threshold, openai_api_key)
             )
         except RuntimeError:
             supported_list = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
@@ -166,8 +167,9 @@ def score_faithfulness(
     threshold: float = 0.7,
     use_llm_judge: bool = False,
     nli_scorer: Optional[NLIScorer] = None,
+    openai_api_key: Optional[str] = None,
 ) -> float:
     score, _ = score_faithfulness_detailed(
-        answer, contexts, embedder, threshold, use_llm_judge, nli_scorer
+        answer, contexts, embedder, threshold, use_llm_judge, nli_scorer, openai_api_key
     )
     return score

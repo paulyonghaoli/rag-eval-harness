@@ -3,10 +3,11 @@ from __future__ import annotations
 import dataclasses
 import functools
 import json
+import os
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from tqdm import tqdm
 
@@ -60,11 +61,16 @@ def _score_record(
     precision_threshold: float,
     use_llm: bool,
     nli_scorer: NLIScorer | None,
+    openai_api_key: Optional[str],
 ) -> ScoredRecord:
     faithfulness, claim_verdicts = score_faithfulness_detailed(
-        record.answer, record.contexts, embedder, faith_threshold, use_llm, nli_scorer
+        record.answer, record.contexts, embedder, faith_threshold, use_llm, nli_scorer,
+        openai_api_key=openai_api_key,
     )
-    relevance = score_answer_relevance(record.question, record.answer, embedder, use_llm=use_llm)
+    relevance = score_answer_relevance(
+        record.question, record.answer, embedder,
+        use_llm=use_llm, openai_api_key=openai_api_key,
+    )
     precision = score_context_precision(
         record.answer, record.contexts, embedder, precision_threshold
     )
@@ -131,7 +137,10 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
     precision_threshold = float(thresholds.get("precision", 0.5))
     min_k = int(config.get("clustering", {}).get("min_k", 3))
     max_k = int(config.get("clustering", {}).get("max_k", 5))
-    use_llm = bool(config.get("llm_as_judge", {}).get("enabled", False))
+    llm_cfg = config.get("llm_as_judge", {})
+    use_llm = bool(llm_cfg.get("enabled", False))
+    api_key_env = llm_cfg.get("openai_api_key_env", "OPENAI_API_KEY")
+    openai_api_key: Optional[str] = os.environ.get(api_key_env) if use_llm else None
     faith_method = config.get("faithfulness_method", "cosine")
     nli_scorer: NLIScorer | None = None
     if faith_method == "nli":
@@ -144,6 +153,7 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
         precision_threshold=precision_threshold,
         use_llm=use_llm,
         nli_scorer=nli_scorer,
+        openai_api_key=openai_api_key,
     )
 
     # ThreadPoolExecutor parallelises the per-record numpy scoring work.
