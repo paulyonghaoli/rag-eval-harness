@@ -22,20 +22,49 @@ from evaluator.relevance import score_answer_relevance
 from evaluator.types import EvalRecord, Scores, ScoredRecord
 
 
+def _validate_record(raw: dict, line_num: int) -> EvalRecord:
+    for field in ("question", "answer"):
+        val = raw.get(field)
+        if not isinstance(val, str):
+            raise ValueError(
+                f"Line {line_num}: '{field}' must be a non-null string, "
+                f"got {type(val).__name__!r}"
+            )
+    contexts = raw.get("contexts")
+    if not isinstance(contexts, list):
+        raise ValueError(
+            f"Line {line_num}: 'contexts' must be a list of strings, "
+            f"got {type(contexts).__name__!r}"
+        )
+    for i, ctx in enumerate(contexts):
+        if not isinstance(ctx, str):
+            raise ValueError(
+                f"Line {line_num}: 'contexts[{i}]' must be a string, "
+                f"got {type(ctx).__name__!r}"
+            )
+    ground_truth = raw.get("ground_truth")
+    if ground_truth is not None and not isinstance(ground_truth, str):
+        raise ValueError(
+            f"Line {line_num}: 'ground_truth' must be a string or null, "
+            f"got {type(ground_truth).__name__!r}"
+        )
+    return EvalRecord(
+        question=raw["question"],
+        answer=raw["answer"],
+        contexts=contexts,
+        ground_truth=ground_truth,
+    )
+
+
 def load_jsonl(path: Path) -> List[EvalRecord]:
     records: List[EvalRecord] = []
     with path.open("r", encoding="utf-8") as f:
-        for line in f:
+        for line_num, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
             raw = json.loads(line)
-            records.append(EvalRecord(
-                question=str(raw.get("question", "")),
-                answer=str(raw.get("answer", "")),
-                contexts=list(raw.get("contexts", [])),
-                ground_truth=raw.get("ground_truth"),
-            ))
+            records.append(_validate_record(raw, line_num))
     return records
 
 
