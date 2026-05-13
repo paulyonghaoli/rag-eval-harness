@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from evaluator.pipeline import run_evaluation
+from evaluator.pipeline import load_baseline_means, run_evaluation
 
 
 def load_config(path: Path) -> dict:
@@ -35,6 +35,19 @@ def build_args() -> argparse.Namespace:
         default=None,
         help="Faithfulness scoring method: 'cosine' (default) or 'nli' (CrossEncoder).",
     )
+    parser.add_argument(
+        "--baseline-scores",
+        default=None,
+        metavar="PATH",
+        help="Path to a previous scores.jsonl for regression comparison.",
+    )
+    parser.add_argument(
+        "--min-delta-faithfulness",
+        type=float,
+        default=None,
+        metavar="DELTA",
+        help="Fail if faithfulness mean drops below baseline by more than DELTA (e.g. -0.02).",
+    )
     return parser.parse_args()
 
 
@@ -53,8 +66,21 @@ def main() -> None:
         config["faithfulness_method"] = args.faithfulness_method
 
     summary = run_evaluation(input_path, output_dir, config)
+
     if summary.get("passed") is False:
         sys.exit(1)
+
+    if args.baseline_scores and args.min_delta_faithfulness is not None:
+        baseline = load_baseline_means(Path(args.baseline_scores))
+        current = (summary["metrics"].get("faithfulness") or {}).get("mean", 0.0)
+        base = baseline.get("faithfulness", 0.0)
+        delta = current - base
+        if delta < args.min_delta_faithfulness:
+            print(
+                f"REGRESSION: faithfulness {base:.4f} -> {current:.4f} "
+                f"(delta {delta:+.4f}, allowed >= {args.min_delta_faithfulness:+.4f})"
+            )
+            sys.exit(1)
 
 
 if __name__ == "__main__":

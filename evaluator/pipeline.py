@@ -196,6 +196,22 @@ def build_report(
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def load_baseline_means(path: Path) -> Dict[str, float]:
+    """Read per-metric means from a previous scores.jsonl (candidate vs baseline comparison)."""
+    values: Dict[str, List[float]] = {dim: [] for dim in _DIMS}
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            scores = json.loads(line).get("scores", {})
+            for dim in _DIMS:
+                v = scores.get(dim)
+                if v is not None:
+                    values[dim].append(float(v))
+    return {dim: statistics.mean(vals) if vals else 0.0 for dim, vals in values.items()}
+
+
 def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -> Dict[str, Any]:
     records = load_jsonl(input_path)
     if not records:
