@@ -61,6 +61,12 @@ def test_load_baseline_means(tmp_path: Path) -> None:
     assert means["recall"] == 0.5                      # only one non-null value
 
 
+def test_unknown_gate_metric_warns() -> None:
+    records = [_record("Q1", 0.9, 0.8)]
+    with pytest.warns(UserWarning, match="faithfulnes"):
+        compute_summary(records, {"faithfulnes": 0.85})  # typo — missing 's'
+
+
 def test_summary_json_written_to_output_dir(tmp_path: Path) -> None:
     config = {
         "embedder_model": "all-MiniLM-L6-v2",

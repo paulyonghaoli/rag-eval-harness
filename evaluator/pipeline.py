@@ -5,6 +5,7 @@ import functools
 import json
 import os
 import statistics
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -152,6 +153,12 @@ def compute_summary(
     if quality_gates:
         passed = True
         for metric, threshold in quality_gates.items():
+            if metric not in _DIMS:
+                warnings.warn(
+                    f"Unknown quality gate metric {metric!r}. Valid metrics: {list(_DIMS)}",
+                    UserWarning,
+                    stacklevel=2,
+                )
             m = metrics.get(metric)
             mean = m["mean"] if m is not None else 0.0
             gate_ok = mean >= threshold
@@ -176,7 +183,7 @@ def build_report(
     lines: List[str] = ["# RAG Evaluation Report", ""]
     for dim in dims:
         values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
-        lines += [f"## {dim.title()}", f"- Mean ± std: {_mean_std(values)}", ""]
+        lines += [f"## {dim.replace('_', ' ').title()}", f"- Mean ± std: {_mean_std(values)}", ""]
 
     lines.append("## Failure mode clusters")
     if not clusters:
@@ -265,12 +272,11 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
     summary_path = output_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-    _print_summary(scored_records, scores_path, report_path, summary_path, summary)
+    _print_summary(scores_path, report_path, summary_path, summary)
     return summary
 
 
 def _print_summary(
-    records: List[ScoredRecord],
     scores_path: Path,
     report_path: Path,
     summary_path: Path,
@@ -279,11 +285,11 @@ def _print_summary(
     print("\n" + "=" * 50)
     print("RAG Evaluation Summary")
     print("=" * 50)
-    print(f"Records evaluated : {len(records)}")
+    print(f"Records evaluated : {summary['records_evaluated']}")
     print()
     for dim in _DIMS:
-        values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
-        label = _mean_std(values) if values else "n/a"
+        m = summary["metrics"].get(dim)
+        label = f"{m['mean']:.3f} ± {m['std']:.3f}" if m else "n/a"
         print(f"  {dim:<18} {label}")
     print()
     if summary.get("quality_gates"):

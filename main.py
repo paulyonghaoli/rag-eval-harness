@@ -70,6 +70,12 @@ def main() -> None:
     if summary.get("passed") is False:
         sys.exit(1)
 
+    if args.baseline_scores and args.min_delta_faithfulness is None:
+        print(
+            "Warning: --baseline-scores has no effect without --min-delta-faithfulness",
+            file=sys.stderr,
+        )
+
     if args.baseline_scores and args.min_delta_faithfulness is not None:
         baseline = load_baseline_means(Path(args.baseline_scores))
         current = (summary["metrics"].get("faithfulness") or {}).get("mean", 0.0)
