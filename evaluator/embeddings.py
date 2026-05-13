@@ -34,8 +34,13 @@ class Embedder:
 
     @property
     def model(self) -> SentenceTransformer:
+        # Double-checked locking: avoids re-acquiring the lock on every encode()
+        # call once the model is loaded, while preventing concurrent threads from
+        # each calling SentenceTransformer() during the first load.
         if self._model is None:
-            self._model = SentenceTransformer(self.model_name)
+            with self._lock:
+                if self._model is None:
+                    self._model = SentenceTransformer(self.model_name)
         return self._model
 
     def encode(self, texts: Iterable[str]) -> np.ndarray:

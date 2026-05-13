@@ -1,4 +1,5 @@
 import argparse
+import sys
 from pathlib import Path
 
 import yaml
@@ -51,7 +52,9 @@ def main() -> None:
     if args.faithfulness_method is not None:
         config["faithfulness_method"] = args.faithfulness_method
 
-    run_evaluation(input_path, output_dir, config)
+    summary = run_evaluation(input_path, output_dir, config)
+    if summary.get("passed") is False:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

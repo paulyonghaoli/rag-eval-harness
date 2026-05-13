@@ -7,7 +7,7 @@ import os
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -125,12 +125,54 @@ def _score_record(
     )
 
 
+_DIMS: Tuple[str, ...] = (
+    "faithfulness", "relevance", "precision", "context_relevance", "recall"
+)
+
+
+def compute_summary(
+    records: List[ScoredRecord],
+    quality_gates: Dict[str, float],
+) -> Dict[str, Any]:
+    """Build a machine-readable summary dict suitable for writing to summary.json."""
+    metrics: Dict[str, Any] = {}
+    for dim in _DIMS:
+        values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
+        if values:
+            metrics[dim] = {
+                "mean": round(statistics.mean(values), 4),
+                "std": round(statistics.pstdev(values) if len(values) > 1 else 0.0, 4),
+                "n": len(values),
+            }
+        else:
+            metrics[dim] = None
+
+    gate_results: Dict[str, Any] = {}
+    passed: Optional[bool] = None
+    if quality_gates:
+        passed = True
+        for metric, threshold in quality_gates.items():
+            m = metrics.get(metric)
+            mean = m["mean"] if m is not None else 0.0
+            gate_ok = mean >= threshold
+            gate_results[metric] = {"threshold": threshold, "mean": mean, "passed": gate_ok}
+            if not gate_ok:
+                passed = False
+
+    return {
+        "records_evaluated": len(records),
+        "metrics": metrics,
+        "quality_gates": gate_results if quality_gates else None,
+        "passed": passed,
+    }
+
+
 def build_report(
     output_path: Path,
     records: List[ScoredRecord],
     clusters: List[ClusterSummary],
 ) -> None:
-    dims = ("faithfulness", "relevance", "precision", "context_relevance", "recall")
+    dims = _DIMS
     lines: List[str] = ["# RAG Evaluation Report", ""]
     for dim in dims:
         values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
@@ -154,7 +196,7 @@ def build_report(
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -> None:
+def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -> Dict[str, Any]:
     records = load_jsonl(input_path)
     if not records:
         raise ValueError(f"No records found in {input_path}")
@@ -199,25 +241,42 @@ def run_evaluation(input_path: Path, output_dir: Path, config: Dict[str, Any]) -
     clusters = cluster_failures(scored_records, embedder, min_k, max_k)
     report_path = output_dir / "report.md"
     build_report(report_path, scored_records, clusters)
-    _print_summary(scored_records, scores_path, report_path)
+
+    quality_gates: Dict[str, float] = {
+        k: float(v) for k, v in config.get("quality_gates", {}).items()
+    }
+    summary = compute_summary(scored_records, quality_gates)
+    summary_path = output_dir / "summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    _print_summary(scored_records, scores_path, report_path, summary_path, summary)
+    return summary
 
 
 def _print_summary(
     records: List[ScoredRecord],
     scores_path: Path,
     report_path: Path,
+    summary_path: Path,
+    summary: Dict[str, Any],
 ) -> None:
-    dims = ("faithfulness", "relevance", "precision", "context_relevance", "recall")
     print("\n" + "=" * 50)
     print("RAG Evaluation Summary")
     print("=" * 50)
     print(f"Records evaluated : {len(records)}")
     print()
-    for dim in dims:
+    for dim in _DIMS:
         values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
         label = _mean_std(values) if values else "n/a"
         print(f"  {dim:<18} {label}")
     print()
-    print(f"Scores  -> {scores_path}")
-    print(f"Report  -> {report_path}")
+    if summary.get("quality_gates"):
+        print("Quality gates:")
+        for metric, result in summary["quality_gates"].items():
+            status = "PASS" if result["passed"] else "FAIL"
+            print(f"  {metric:<18} {result['mean']:.3f} >= {result['threshold']} [{status}]")
+        print()
+    print(f"Scores   -> {scores_path}")
+    print(f"Report   -> {report_path}")
+    print(f"Summary  -> {summary_path}")
     print("=" * 50 + "\n")
