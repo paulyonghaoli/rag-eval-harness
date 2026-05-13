@@ -138,31 +138,33 @@ def score_faithfulness_detailed(
     if not context_sentences:
         return 0.0, [ClaimVerdict(claim=c, supported=False) for c in claims]
 
-    # Pre-compute cosine similarity matrix once — used as fallback in all paths.
-    claim_embeddings = embedder.encode(claims)
-    context_embeddings = embedder.encode(context_sentences)
-    similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
-
     verdicts: List[ClaimVerdict] = []
 
     if nli_scorer is not None:
+        # NLI path: no cosine fallback needed, skip embedding computation entirely.
         for claim in claims:
             is_supported = nli_scorer.is_entailed(context_sentences, claim, threshold=0.5)
             verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
-    elif use_llm_judge:
-        # asyncio.run works from a ThreadPoolExecutor worker because each worker
-        # thread has no running event loop of its own.
-        try:
-            supported_list = asyncio.run(
-                _batch_llm_judge(claims, contexts, similarity, threshold, openai_api_key)
-            )
-        except RuntimeError:
-            supported_list = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
-        verdicts = [ClaimVerdict(claim=c, supported=s) for c, s in zip(claims, supported_list)]
     else:
-        for claim_idx, claim in enumerate(claims):
-            is_supported = float(similarity[claim_idx].max()) >= threshold
-            verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
+        # Cosine / LLM paths both need the similarity matrix (LLM uses it as a fallback).
+        claim_embeddings = embedder.encode(claims)
+        context_embeddings = embedder.encode(context_sentences)
+        similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
+
+        if use_llm_judge:
+            # asyncio.run works from a ThreadPoolExecutor worker because each worker
+            # thread has no running event loop of its own.
+            try:
+                supported_list = asyncio.run(
+                    _batch_llm_judge(claims, contexts, similarity, threshold, openai_api_key)
+                )
+            except RuntimeError:
+                supported_list = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
+            verdicts = [ClaimVerdict(claim=c, supported=s) for c, s in zip(claims, supported_list)]
+        else:
+            for claim_idx, claim in enumerate(claims):
+                is_supported = float(similarity[claim_idx].max()) >= threshold
+                verdicts.append(ClaimVerdict(claim=claim, supported=is_supported))
 
     score = sum(v.supported for v in verdicts) / len(verdicts)
     return score, verdicts
