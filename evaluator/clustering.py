@@ -24,8 +24,10 @@ def _failure_label(mean_scores: Dict[str, float]) -> str:
     lowest = min(mean_scores, key=mean_scores.__getitem__)
     return {
         "faithfulness": "hallucination-dominant",
-        "recall": "retrieval-dominant",
+        "recall": "retrieval-gap-dominant",
         "relevance": "relevance-dominant",
+        "precision": "noise-dominant",
+        "context_relevance": "topic-drift-dominant",
     }.get(lowest, "mixed")
 
 
@@ -40,18 +42,21 @@ def _severity(scores: Scores) -> float:
     )
 
 
-def _best_k(embeddings: np.ndarray, min_k: int, max_k: int) -> int:
-    best_k, best_score = min_k, float("-inf")
+def _best_kmeans(embeddings: np.ndarray, min_k: int, max_k: int) -> KMeans:
+    best_model: KMeans | None = None
+    best_score = float("-inf")
     for k in range(min_k, max_k + 1):
         if k >= len(embeddings):
             break
-        labels = KMeans(n_clusters=k, random_state=42, n_init="auto").fit_predict(embeddings)
-        if len(set(labels)) < 2:
+        km = KMeans(n_clusters=k, random_state=42, n_init="auto").fit(embeddings)
+        if len(set(km.labels_)) < 2:
             continue
-        score = silhouette_score(embeddings, labels)
+        score = silhouette_score(embeddings, km.labels_)
         if score > best_score:
-            best_score, best_k = score, k
-    return best_k
+            best_score, best_model = score, km
+    if best_model is None:
+        best_model = KMeans(n_clusters=min_k, random_state=42, n_init="auto").fit(embeddings)
+    return best_model
 
 
 def cluster_failures(
@@ -65,9 +70,8 @@ def cluster_failures(
 
     examples = [f"{r.question} {r.answer}" for r in records]
     embeddings = embedder.encode(examples)
-    chosen_k = _best_k(embeddings, min_k, max_k)
-    kmeans = KMeans(n_clusters=chosen_k, random_state=42, n_init="auto")
-    labels = kmeans.fit_predict(embeddings)
+    kmeans = _best_kmeans(embeddings, min_k, max_k)
+    labels = kmeans.labels_
 
     summaries: List[ClusterSummary] = []
     for cluster_id in sorted(set(labels)):
