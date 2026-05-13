@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 from sentence_transformers import CrossEncoder
 
@@ -25,11 +27,14 @@ class NLIScorer:
     def __init__(self, model_name: str = "cross-encoder/nli-deberta-v3-small") -> None:
         self.model_name = model_name
         self._model: CrossEncoder | None = None
+        self._lock = threading.Lock()
 
     @property
     def model(self) -> CrossEncoder:
         if self._model is None:
-            self._model = CrossEncoder(self.model_name)
+            with self._lock:
+                if self._model is None:
+                    self._model = CrossEncoder(self.model_name)
         return self._model
 
     def entailment_scores(self, premises: list[str], hypothesis: str) -> np.ndarray:
