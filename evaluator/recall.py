@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.faithfulness import split_into_claims
+from evaluator.text_utils import split_into_claims
 
 
 def score_context_recall(

@@ -5,7 +5,7 @@ from typing import List
 import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.faithfulness import split_into_claims
+from evaluator.text_utils import split_into_claims
 
 
 def score_context_precision(

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import warnings
 from typing import TYPE_CHECKING, List, Optional
 
@@ -10,24 +9,11 @@ import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
 from evaluator.nli import NLIScorer
+from evaluator.text_utils import split_into_claims
 from evaluator.types import ClaimVerdict
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI as _AsyncOpenAIClient
-
-
-def split_into_claims(text: str) -> List[str]:
-    text = text.strip()
-    if not text:
-        return []
-    fragments = re.split(r"[.?!;]\s*", text)
-    claims = []
-    for fragment in fragments:
-        fragment = fragment.strip().rstrip(".")
-        if len(fragment.split()) < 3:
-            continue
-        claims.append(fragment)
-    return claims or [text]
 
 
 def _make_judge_prompt(claim: str, contexts: List[str]) -> str:
