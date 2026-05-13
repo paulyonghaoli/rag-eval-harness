@@ -27,8 +27,4 @@ def score_context_recall(
     context_embeddings = embedder.encode(context_sentences)
     similarity = cosine_similarity_matrix(claim_embeddings, context_embeddings)
 
-    covered = 0
-    for claim_idx in range(similarity.shape[0]):
-        if float(similarity[claim_idx].max()) >= threshold:
-            covered += 1
-    return float(covered) / len(claims)
+    return float((similarity.max(axis=1) >= threshold).sum()) / len(claims)

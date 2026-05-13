@@ -25,8 +25,4 @@ def score_context_precision(
     chunk_embeddings = embedder.encode(contexts)
     similarity = cosine_similarity_matrix(chunk_embeddings, answer_embeddings)
 
-    supported = 0
-    for chunk_idx in range(similarity.shape[0]):
-        if float(similarity[chunk_idx].max()) >= threshold:
-            supported += 1
-    return float(supported) / len(contexts)
+    return float((similarity.max(axis=1) >= threshold).sum()) / len(contexts)
