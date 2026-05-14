@@ -7,6 +7,37 @@ def test_split_into_claims_separates_sentences() -> None:
     assert len(claims) == 2
 
 
+def test_split_into_claims_splits_compound_independent_clauses() -> None:
+    # ", and " joining two independent clauses must become two separate claims.
+    text = "Photosynthesis converts light to energy, and it occurs in chloroplasts."
+    claims = split_into_claims(text)
+    assert len(claims) == 2
+    assert any("Photosynthesis" in c for c in claims)
+    assert any("chloroplasts" in c for c in claims)
+
+
+def test_split_into_claims_preserves_noun_phrase_and() -> None:
+    # "and" inside a noun phrase (no leading comma) must NOT split.
+    claims = split_into_claims("Cats and dogs are common household pets.")
+    assert len(claims) == 1
+
+
+def test_split_into_claims_preserves_oxford_comma_enumeration() -> None:
+    # Oxford-comma list must stay as one claim — "and reflected" is not an independent clause.
+    claims = split_into_claims(
+        "Rainbows form when sunlight is refracted, dispersed, and reflected inside water droplets."
+    )
+    assert len(claims) == 1
+
+
+def test_split_into_claims_splits_pronoun_led_clause() -> None:
+    # ", and it/they/this" is the independent-clause signal that warrants splitting.
+    claims = split_into_claims(
+        "The water cycle moves water through evaporation, and it returns via precipitation."
+    )
+    assert len(claims) == 2
+
+
 def test_faithfulness_detects_unsupported_claims() -> None:
     # Two-sentence answer: first claim is supported, second is hallucinated.
     answer = "The Eiffel Tower is in Paris. It is painted bright green."
