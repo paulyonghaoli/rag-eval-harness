@@ -107,6 +107,58 @@ results/scores.jsonl  results/report.md
 
 **Limitation of cosine-only faithfulness:** embedding similarity measures topic proximity, not logical support. A claim that contradicts the context can still score highly if it shares the same vocabulary. Use NLI or LLM judge for contradiction-sensitive evaluation.
 
+### Faithfulness method — known blind spots
+
+Verified against a 17-question adversarial set (`data/adversarial_eval_set.jsonl`) covering negation, unit errors, magnitude errors, wrong attribution, date contradictions, and paraphrases:
+
+| Failure type | Cosine | NLI | LLM |
+| --- | --- | --- | --- |
+| Negation ("NOT visible" vs "clearly visible") | ❌ | ✅ | ✅ |
+| Date contradiction (1989 vs 1991) | ❌ | ✅ | ✅ |
+| Percentage contradiction (71% vs 50%) | ❌ | ✅ | ✅ |
+| Wrong attribution (Newton vs Einstein) | ✅ | ✅ | ✅ |
+| Explicit correction in context (Sydney → Canberra) | ❌ | ✅ | ✅ |
+| Magnitude error (3,844 km vs 384,400 km, 100×) | ❌ | ❌ | ✅ |
+| Unit confusion (37°C vs 37°F, same number) | ❌ | ❌ | ✅ |
+| Vague paraphrase (concise subset of context) | ❌ | ✅ | ✅ |
+| Synonym paraphrase ("biggest" = "largest") | ✅ | ✅ | ✅ |
+| Speculative addition beyond context | ✅ | ✅ | ✅ |
+| Multi-chunk synthesis (claims span two contexts) | ✅ | ✅ | ✅ |
+| Completely irrelevant context | ✅ | ✅ | ✅ |
+
+**Why cosine misses negation and numbers:** embeddings encode topic proximity, not logical polarity. "The wall is visible" and "the wall is NOT visible" are a single token apart — their vectors are nearly identical.
+
+**Why NLI misses magnitude and unit errors:** NLI models are trained on textual entailment patterns, not arithmetic. "3,844 km" and "384,400 km" have the same sentence structure and unit word; the model has no mechanism to compare numeric magnitudes. Similarly, "37°C" and "37°F" look like the same number with a different letter.
+
+**Practical guidance:** cosine is sufficient if your RAG answers are unlikely to contradict context using the same vocabulary. Switch to NLI when contradiction detection matters and you need an offline solution. Use LLM judge when numeric facts, units, or measurements are critical — it is the only method that reliably catches magnitude and unit errors.
+
+### Threshold tuning
+
+The default thresholds are conservative starting points, not universal truths. Each threshold is a tradeoff between false positives (flagging correct answers) and false negatives (missing real hallucinations):
+
+| Threshold | Default | Lower if… | Raise if… |
+| --- | --- | --- | --- |
+| `faithfulness` (cosine) | 0.7 | Short paraphrases are being missed (false negatives) | Too many correct answers flagged as hallucinations |
+| `precision` (cosine) | 0.5 | Good context chunks are being excluded | Noisy chunks are being counted as useful |
+| NLI entailment (internal, 0.5) | 0.5 | Valid paraphrases with different phrasing are failing | Weak entailments are accepted too liberally |
+
+Run `data/adversarial_eval_set.jsonl` after any threshold change to verify you haven't introduced new regressions.
+
+### Diagnosing failures from metric combinations
+
+A single low score points to the retriever or the LLM; the combination tells you which:
+
+| Pattern | Probable cause | Where to look |
+| --- | --- | --- |
+| `faithfulness` ↓, others normal | LLM generating beyond its context | Tighten prompt; switch to NLI or LLM judge |
+| `ctx_rel` ↓ + `precision` ↓ | Retriever pulling wrong documents | Review embedding model, re-chunk, check top-k |
+| `recall` ↓, others normal | Retriever missing key chunks | Increase top-k; check document coverage |
+| `faithfulness` ↓ + `ctx_rel` ↓ | Both retriever and generator failing | Fix retriever first, then re-evaluate faithfulness |
+| `relevance` ↓, faithfulness OK | Answer is on-topic but doesn't address the question | Review answer generation prompt |
+| All metrics normal except `ctx_rel` near 0 | Specific query type returns junk (topic drift) | Add adversarial examples for that query type |
+
+`ctx_rel` is the most direct retrieval health signal — it measures question-to-context semantic distance before any generation happens. A `ctx_rel` below 0.3 almost always means the retriever fetched the wrong document, regardless of how the LLM handled it.
+
 **Answer Relevance** — three synthetic questions are generated from the answer text (heuristic offline, or via gpt-4o-mini when enabled). All four questions (original + synthetic) are embedded and the score is the mean cosine similarity to the original question. A good answer generates questions that closely resemble the real question.
 
 **Context Precision** — for each retrieved chunk, compute max cosine similarity to any sentence in the answer. `precision = chunks_above_threshold / total_chunks`. A low score means your retriever is pulling irrelevant documents.
