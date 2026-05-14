@@ -78,6 +78,17 @@ def test_error_includes_line_number(tmp_path: Path) -> None:
         load_jsonl(p)
 
 
+def test_invalid_json_raises_with_line_number(tmp_path: Path) -> None:
+    p = tmp_path / "bad.jsonl"
+    p.write_text(
+        json.dumps({"question": "Q?", "answer": "A.", "contexts": []}) + "\n"
+        "{ this is not json }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Line 2"):
+        load_jsonl(p)
+
+
 def test_empty_lines_skipped(tmp_path: Path) -> None:
     p = tmp_path / "test.jsonl"
     p.write_text(

@@ -64,7 +64,10 @@ def load_jsonl(path: Path) -> List[EvalRecord]:
             line = line.strip()
             if not line:
                 continue
-            raw = json.loads(line)
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Line {line_num}: invalid JSON — {exc}") from exc
             records.append(_validate_record(raw, line_num))
     return records
 

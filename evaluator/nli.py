@@ -39,7 +39,11 @@ class NLIScorer:
     @property
     def entailment_idx(self) -> int:
         _ = self.model  # ensure model (and index) is initialised
-        assert self._entailment_idx is not None
+        if self._entailment_idx is None:
+            raise RuntimeError(
+                f"Entailment index was not resolved after loading {self.model_name!r}. "
+                "The model config may be missing an 'entailment' label."
+            )
         return self._entailment_idx
 
     @staticmethod
@@ -51,7 +55,7 @@ class NLIScorer:
         entailment at index 1, not 2). Reading from id2label makes this
         work correctly for any compliant NLI model.
         """
-        id2label: dict = getattr(model.model, "config", None) and model.model.config.id2label or {}
+        id2label: dict = getattr(getattr(model.model, "config", None), "id2label", {}) or {}
         for idx, label in id2label.items():
             if label.lower() == "entailment":
                 return int(idx)

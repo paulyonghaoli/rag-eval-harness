@@ -6,7 +6,7 @@ from typing import List, Optional
 import numpy as np
 
 from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.faithfulness import split_into_claims
+from evaluator.text_utils import split_into_claims
 
 
 def _generate_questions_llm(
@@ -22,7 +22,7 @@ def _generate_questions_llm(
         f"Text:\n{answer}\n"
     )
     try:
-        from openai import OpenAI
+        from openai import OpenAI, AuthenticationError, PermissionDeniedError
     except ImportError:
         warnings.warn(
             "The 'openai' package is not installed. "
@@ -33,7 +33,6 @@ def _generate_questions_llm(
         )
         return []
     try:
-        from openai import AuthenticationError, PermissionDeniedError
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
