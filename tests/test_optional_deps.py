@@ -24,13 +24,12 @@ def test_faithfulness_llm_falls_back_without_openai(monkeypatch: pytest.MonkeyPa
     assert result == [True]  # cosine fallback applied correctly
 
 
-def test_faithfulness_llm_warns_on_auth_error() -> None:
-    """AuthenticationError must surface as a warning, not be silently swallowed."""
+def test_faithfulness_llm_raises_on_auth_error() -> None:
+    """AuthenticationError must propagate as RuntimeError, not be silently swallowed."""
     import openai
 
     similarity = np.array([[0.9, 0.1]])
 
-    # Fake an AsyncOpenAI client whose chat.completions.create raises AuthenticationError.
     mock_response = MagicMock()
     mock_response.status_code = 401
     auth_error = openai.AuthenticationError("bad key", response=mock_response, body={})
@@ -41,11 +40,10 @@ def test_faithfulness_llm_warns_on_auth_error() -> None:
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         from evaluator.faithfulness import _batch_llm_judge
-        with pytest.warns(UserWarning, match="authentication failed"):
-            result = asyncio.run(
+        with pytest.raises(RuntimeError, match="authentication failed"):
+            asyncio.run(
                 _batch_llm_judge(["some claim"], ["ctx"], similarity, 0.7, openai_api_key="bad-key")
             )
-    assert result == [True]  # cosine fallback still applied
 
 
 def test_relevance_llm_falls_back_without_openai(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -110,14 +110,10 @@ async def _batch_llm_judge(
         )
         return cosine_fallback
     except (AuthenticationError, PermissionDeniedError) as exc:
-        warnings.warn(
-            f"LLM judge authentication failed ({exc}). "
-            "Check that OPENAI_API_KEY is set correctly. "
-            "Falling back to cosine similarity for all faithfulness claims.",
-            UserWarning,
-            stacklevel=2,
-        )
-        return cosine_fallback
+        raise RuntimeError(
+            f"LLM judge authentication failed: {exc}. "
+            "Check that OPENAI_API_KEY is set to a valid key."
+        ) from exc
 
     if all(v is None for v in raw):
         warnings.warn(

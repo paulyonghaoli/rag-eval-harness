@@ -33,6 +33,7 @@ def _generate_questions_llm(
         )
         return []
     try:
+        from openai import AuthenticationError, PermissionDeniedError
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -43,6 +44,11 @@ def _generate_questions_llm(
         text = response.choices[0].message.content.strip()
         questions = [ln.strip(" -0123456789.)") for ln in text.splitlines() if ln.strip()]
         return questions[:count] if len(questions) >= count else []
+    except (AuthenticationError, PermissionDeniedError) as exc:
+        raise RuntimeError(
+            f"LLM judge authentication failed: {exc}. "
+            "Check that OPENAI_API_KEY is set to a valid key."
+        ) from exc
     except Exception:
         return []
 
