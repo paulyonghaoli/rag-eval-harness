@@ -17,11 +17,22 @@ if TYPE_CHECKING:
 
 
 def _make_judge_prompt(claim: str, contexts: List[str]) -> str:
+    ctx_block = "\n".join(f"- {c}" for c in contexts)
     return (
-        "Given the contexts and claim below, respond with exactly one JSON object.\n"
-        'If the claim is supported by the contexts: {"verdict": "SUPPORTED"}\n'
-        'Otherwise: {"verdict": "NOT_SUPPORTED"}\n\n'
-        f"Contexts:\n{chr(10).join(contexts)}\n\nClaim:\n{claim}\n\nJSON:"
+        "You are a strict faithfulness judge. Decide whether the claim is supported "
+        "by the context passages below.\n\n"
+        "Rules (apply in order):\n"
+        "1. NOT_SUPPORTED if the context states a specific fact (number, name, symbol, "
+        "date, measurement) that directly contradicts the claim.\n"
+        "2. NOT_SUPPORTED if the claim asserts a specific fact that the context does "
+        "not mention at all.\n"
+        "3. SUPPORTED only if every specific fact in the claim is explicitly stated or "
+        "directly implied by the context.\n"
+        "Do NOT use outside knowledge — judge solely on what the context says.\n\n"
+        f"Context:\n{ctx_block}\n\n"
+        f"Claim: {claim}\n\n"
+        'Respond with exactly one JSON object: {"verdict": "SUPPORTED"} or '
+        '{"verdict": "NOT_SUPPORTED"}\n\nJSON:'
     )
 
 
@@ -57,7 +68,15 @@ async def _async_judge_claim(
             temperature=0.0,
         )
         return _parse_judge_verdict(response.choices[0].message.content.strip())
-    except Exception:
+    except Exception as exc:
+        # Re-raise configuration errors so _batch_llm_judge can surface them clearly.
+        # Only swallow transient per-request failures (rate limits, timeouts, etc.).
+        try:
+            from openai import AuthenticationError, PermissionDeniedError
+            if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
+                raise
+        except ImportError:
+            pass
         return None
 
 
@@ -73,7 +92,7 @@ async def _batch_llm_judge(
     if not openai_api_key:
         return cosine_fallback
     try:
-        from openai import AsyncOpenAI
+        from openai import AsyncOpenAI, AuthenticationError, PermissionDeniedError
         client = AsyncOpenAI(api_key=openai_api_key)
         try:
             raw = await asyncio.gather(
@@ -90,6 +109,23 @@ async def _batch_llm_judge(
             stacklevel=2,
         )
         return cosine_fallback
+    except (AuthenticationError, PermissionDeniedError) as exc:
+        warnings.warn(
+            f"LLM judge authentication failed ({exc}). "
+            "Check that OPENAI_API_KEY is set correctly. "
+            "Falling back to cosine similarity for all faithfulness claims.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return cosine_fallback
+
+    if all(v is None for v in raw):
+        warnings.warn(
+            "LLM judge: every API call failed (rate limit, network error, or bad key). "
+            "Results reflect cosine similarity fallback, not LLM judgments.",
+            UserWarning,
+            stacklevel=2,
+        )
     return [
         v if v is not None else float(similarity[i].max()) >= threshold
         for i, v in enumerate(raw)
