@@ -21,13 +21,11 @@ class NLIScorer:
       cross-encoder/nli-deberta-v3-large  (~380 MB, best accuracy)
     """
 
-    # DeBERTa NLI label order: [contradiction, neutral, entailment]
-    _ENTAILMENT_IDX = 2
-
     def __init__(self, model_name: str = "cross-encoder/nli-deberta-v3-small") -> None:
         self.model_name = model_name
         self._model: CrossEncoder | None = None
         self._lock = threading.Lock()
+        self._entailment_idx: int | None = None
 
     @property
     def model(self) -> CrossEncoder:
@@ -35,16 +33,45 @@ class NLIScorer:
             with self._lock:
                 if self._model is None:
                     self._model = CrossEncoder(self.model_name)
+                    self._entailment_idx = self._resolve_entailment_idx(self._model)
         return self._model
+
+    @property
+    def entailment_idx(self) -> int:
+        _ = self.model  # ensure model (and index) is initialised
+        assert self._entailment_idx is not None
+        return self._entailment_idx
+
+    @staticmethod
+    def _resolve_entailment_idx(model: CrossEncoder) -> int:
+        """Read the entailment label index from the model's own config.
+
+        Hardcoding a fixed index is fragile — different NLI checkpoints use
+        different orderings (e.g. cross-encoder/nli-deberta-v3-small has
+        entailment at index 1, not 2). Reading from id2label makes this
+        work correctly for any compliant NLI model.
+        """
+        id2label: dict = getattr(model.model, "config", None) and model.model.config.id2label or {}
+        for idx, label in id2label.items():
+            if label.lower() == "entailment":
+                return int(idx)
+        # Fallback: scan the model's labels attribute if present
+        labels = getattr(model, "labels", None) or []
+        for idx, label in enumerate(labels):
+            if str(label).lower() == "entailment":
+                return idx
+        raise ValueError(
+            f"Cannot determine entailment label index for '{model}'. "
+            f"id2label={id2label}"
+        )
 
     def entailment_scores(self, premises: list[str], hypothesis: str) -> np.ndarray:
         """Return entailment probability for each (premise, hypothesis) pair."""
         pairs = [(p, hypothesis) for p in premises]
         logits = self.model.predict(pairs)
-        # softmax over [contradiction, neutral, entailment]
         exp = np.exp(logits - logits.max(axis=1, keepdims=True))
         probs = exp / exp.sum(axis=1, keepdims=True)
-        return probs[:, self._ENTAILMENT_IDX]
+        return probs[:, self.entailment_idx]
 
     def is_entailed(self, premises: list[str], hypothesis: str, threshold: float = 0.5) -> bool:
         """True if any premise entails the hypothesis above threshold."""
