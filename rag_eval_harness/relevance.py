@@ -5,8 +5,8 @@ from typing import List, Optional
 
 import numpy as np
 
-from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.text_utils import split_into_claims
+from rag_eval_harness.embeddings import Embedder, cosine_similarity_matrix
+from rag_eval_harness.text_utils import split_into_claims
 
 
 def _generate_questions_llm(

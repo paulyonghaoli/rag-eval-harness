@@ -4,8 +4,8 @@ from typing import List
 
 import numpy as np
 
-from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.text_utils import split_into_claims
+from rag_eval_harness.embeddings import Embedder, cosine_similarity_matrix
+from rag_eval_harness.text_utils import split_into_claims
 
 
 def score_context_precision(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from evaluator.text_utils import split_into_claims
+from rag_eval_harness.text_utils import split_into_claims
 
 
 def test_empty_string_returns_empty() -> None:

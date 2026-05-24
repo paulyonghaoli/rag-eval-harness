@@ -169,27 +169,67 @@ A single low score points to the retriever or the LLM; the combination tells you
 
 ---
 
-## Setup
+## Installation
+
+```bash
+pip install rag-eval-harness
+```
+
+**With LLM judge support (gpt-4o-mini):**
+
+```bash
+pip install "rag-eval-harness[llm]"
+```
+
+## Quick start — Python API
+
+```python
+from pathlib import Path
+from rag_eval_harness import run_evaluation
+from rag_eval_harness.data import sample_eval_set
+
+config = {
+    "embedder_model": "all-MiniLM-L6-v2",
+    "faithfulness_method": "cosine",        # "nli" for better accuracy
+    "similarity_thresholds": {"faithfulness": 0.7, "precision": 0.5},
+    "clustering": {"min_k": 3, "max_k": 5},
+    "llm_as_judge": {"enabled": False},
+}
+
+summary = run_evaluation(
+    input_path=sample_eval_set(),           # or Path("your_eval_set.jsonl")
+    output_dir=Path("results/"),
+    config=config,
+)
+print(summary["metrics"]["faithfulness"]["mean"])
+```
+
+Score individual records without running a full pipeline:
+
+```python
+from rag_eval_harness import Embedder, score_faithfulness_detailed, score_answer_relevance
+
+embedder = Embedder()
+
+faith, verdicts = score_faithfulness_detailed(
+    answer="The Eiffel Tower is in Berlin.",
+    contexts=["The Eiffel Tower is a landmark in Paris, France."],
+    embedder=embedder,
+)
+print(faith)          # 0.0 — claim not supported
+print(verdicts)       # [ClaimVerdict(claim="...", supported=False, confidence=0.73)]
+
+relevance = score_answer_relevance("Where is the Eiffel Tower?", "It is in Paris.", embedder)
+print(relevance)      # ~0.87
+```
+
+## Setup — from source
 
 Requires [uv](https://docs.astral.sh/uv/).
-
-**Offline mode (no API key):**
 
 ```bash
 git clone https://github.com/paulyonghaoli/rag-eval-harness
 cd rag-eval-harness
-uv pip install -e .
-```
-
-**LLM judge mode (optional):**
-
-```bash
-uv pip install -e ".[llm]"
-```
-
-**Development (includes pytest):**
-
-```bash
 uv pip install -e ".[dev]"
 ```
 

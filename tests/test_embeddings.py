@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from evaluator.embeddings import Embedder, cosine_similarity_matrix
+from rag_eval_harness.embeddings import Embedder, cosine_similarity_matrix
 
 
 # --- cosine_similarity_matrix ---

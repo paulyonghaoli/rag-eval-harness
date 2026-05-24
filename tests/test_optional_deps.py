@@ -14,7 +14,7 @@ def test_faithfulness_llm_falls_back_without_openai(monkeypatch: pytest.MonkeyPa
     # Simulate openai not installed by poisoning sys.modules.
     monkeypatch.setitem(sys.modules, "openai", None)  # type: ignore[arg-type]
 
-    from evaluator.faithfulness import _batch_llm_judge
+    from rag_eval_harness.faithfulness import _batch_llm_judge
 
     similarity = np.array([[0.9, 0.1]])  # max = 0.9, above threshold 0.7 → True
     with pytest.warns(UserWarning, match="openai"):
@@ -39,7 +39,7 @@ def test_faithfulness_llm_raises_on_auth_error() -> None:
     mock_client.close = AsyncMock()
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
-        from evaluator.faithfulness import _batch_llm_judge
+        from rag_eval_harness.faithfulness import _batch_llm_judge
         with pytest.raises(RuntimeError, match="authentication failed"):
             asyncio.run(
                 _batch_llm_judge(["some claim"], ["ctx"], similarity, 0.7, openai_api_key="bad-key")
@@ -49,7 +49,7 @@ def test_faithfulness_llm_raises_on_auth_error() -> None:
 def test_relevance_llm_falls_back_without_openai(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "openai", None)  # type: ignore[arg-type]
 
-    from evaluator.relevance import _generate_questions_llm
+    from rag_eval_harness.relevance import _generate_questions_llm
 
     with pytest.warns(UserWarning, match="openai"):
         result = _generate_questions_llm("Some answer text.", count=3, openai_api_key="fake")

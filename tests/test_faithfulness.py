@@ -1,5 +1,5 @@
-from evaluator.embeddings import Embedder
-from evaluator.faithfulness import _parse_judge_verdict, score_faithfulness, split_into_claims
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.faithfulness import _parse_judge_verdict, score_faithfulness, split_into_claims
 
 
 def test_split_into_claims_separates_sentences() -> None:

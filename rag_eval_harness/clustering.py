@@ -7,8 +7,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-from evaluator.embeddings import Embedder
-from evaluator.types import ScoredRecord, Scores
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.types import ScoredRecord, Scores
 
 
 @dataclass

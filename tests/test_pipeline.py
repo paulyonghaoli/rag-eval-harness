@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from evaluator.pipeline import build_report, load_jsonl, run_evaluation, write_jsonl
-from evaluator.types import Scores, ScoredRecord
+from rag_eval_harness.pipeline import build_report, load_jsonl, run_evaluation, write_jsonl
+from rag_eval_harness.types import Scores, ScoredRecord
 
 
 def _scored(q: str = "Q?", faith: float = 0.9) -> ScoredRecord:
@@ -85,7 +85,7 @@ def test_build_report_contains_all_dimension_sections(tmp_path: Path) -> None:
 
 
 def test_build_report_with_clusters_includes_cluster_info(tmp_path: Path) -> None:
-    from evaluator.clustering import ClusterSummary
+    from rag_eval_harness.clustering import ClusterSummary
 
     cluster = ClusterSummary(
         label="hallucination-dominant",

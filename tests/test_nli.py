@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from evaluator.nli import NLIScorer
+from rag_eval_harness.nli import NLIScorer
 
 
 @pytest.fixture(scope="module")

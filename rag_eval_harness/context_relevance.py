@@ -4,7 +4,7 @@ from typing import List
 
 import numpy as np
 
-from evaluator.embeddings import Embedder, cosine_similarity_matrix
+from rag_eval_harness.embeddings import Embedder, cosine_similarity_matrix
 
 
 def score_context_relevance(

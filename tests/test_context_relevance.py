@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from evaluator.context_relevance import score_context_relevance
-from evaluator.embeddings import Embedder
+from rag_eval_harness.context_relevance import score_context_relevance
+from rag_eval_harness.embeddings import Embedder
 
 
 def test_context_relevance_empty_contexts(embedder: Embedder) -> None:

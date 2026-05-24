@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 
-from evaluator.embeddings import Embedder, cosine_similarity_matrix
-from evaluator.nli import NLIScorer
-from evaluator.text_utils import split_into_claims
-from evaluator.types import ClaimVerdict
+from rag_eval_harness.embeddings import Embedder, cosine_similarity_matrix
+from rag_eval_harness.nli import NLIScorer
+from rag_eval_harness.text_utils import split_into_claims
+from rag_eval_harness.types import ClaimVerdict
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI as _AsyncOpenAIClient

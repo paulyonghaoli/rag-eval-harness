@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from evaluator.embeddings import Embedder
+from rag_eval_harness.embeddings import Embedder
 
 
 @pytest.fixture(scope="session")

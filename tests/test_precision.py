@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from evaluator.embeddings import Embedder
-from evaluator.precision import score_context_precision
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.precision import score_context_precision
 
 
 def test_precision_empty_contexts(embedder: Embedder) -> None:

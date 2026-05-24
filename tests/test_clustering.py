@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from evaluator.clustering import ClusterSummary, _failure_label, _severity, cluster_failures
-from evaluator.embeddings import Embedder
-from evaluator.types import Scores, ScoredRecord
+from rag_eval_harness.clustering import ClusterSummary, _failure_label, _severity, cluster_failures
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.types import Scores, ScoredRecord
 
 
 def _record(q: str, a: str, s: Scores) -> ScoredRecord:

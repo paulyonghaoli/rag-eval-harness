@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from evaluator.embeddings import Embedder
-from evaluator.relevance import score_answer_relevance
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.relevance import score_answer_relevance
 
 
 def test_relevance_on_topic_answer_scores_above_half(embedder: Embedder) -> None:

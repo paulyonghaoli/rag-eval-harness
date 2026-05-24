@@ -1,8 +1,24 @@
 [project]
 name = "rag-eval-harness"
 version = "0.1.0"
-description = "Production-quality RAG evaluation harness"
+description = "Production-quality RAG evaluation: faithfulness, relevance, precision, recall, and failure-mode clustering."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Paul Li", email = "paullimale@gmail.com" }]
 requires-python = ">=3.11"
+keywords = ["rag", "evaluation", "llm", "faithfulness", "nlp", "retrieval", "hallucination"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Text Processing :: Linguistic",
+]
 dependencies = [
     "PyYAML>=6.0.1",
     "sentence-transformers>=3.0.0",
@@ -20,8 +36,20 @@ dev = [
     "openai>=1.0.0",
 ]
 
+[project.scripts]
+rag-eval = "rag_eval_harness.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/paulyonghaoli/rag-eval-harness"
+Repository = "https://github.com/paulyonghaoli/rag-eval-harness"
+Issues = "https://github.com/paulyonghaoli/rag-eval-harness/issues"
+Changelog = "https://github.com/paulyonghaoli/rag-eval-harness/blob/main/CHANGELOG.md"
+
 [tool.setuptools.packages.find]
-include = ["evaluator*"]
+include = ["rag_eval_harness*"]
+
+[tool.setuptools.package-data]
+rag_eval_harness = ["data/*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

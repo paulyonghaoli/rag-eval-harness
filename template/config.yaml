@@ -1,0 +1,42 @@
+# rag-eval-harness configuration
+# Copy this file to your project and edit as needed.
+
+# Faithfulness scoring method.
+#   cosine  — fast, offline, no GPU needed (default)
+#   nli     — CrossEncoder NLI model (~85 MB download on first run); catches negations and
+#             logical contradictions that cosine misses
+faithfulness_method: cosine
+
+# Enable gpt-4o-mini as judge for faithfulness + answer relevance.
+# Highest accuracy but requires OPENAI_API_KEY and network access.
+llm_as_judge:
+  enabled: false
+  openai_api_key_env: OPENAI_API_KEY   # name of the env var holding your key
+
+# Embedding model for cosine-based scoring.
+# Any sentence-transformers model works here.
+embedder_model: all-MiniLM-L6-v2
+
+# NLI model used when faithfulness_method = nli.
+nli_model: cross-encoder/nli-deberta-v3-small
+
+# Cosine similarity thresholds.
+# Raise to reduce false positives; lower to reduce false negatives.
+# See README for guidance on tuning these.
+similarity_thresholds:
+  faithfulness: 0.7    # minimum cosine similarity for a claim to be considered supported
+  precision: 0.5       # minimum cosine similarity for a context chunk to count as useful
+
+# k-means clustering parameters for failure-mode analysis.
+clustering:
+  min_k: 3
+  max_k: 5
+
+# Uncomment to fail CI runs when any metric mean falls below a threshold.
+# Exit code will be 1 if any gate fails.
+# quality_gates:
+#   faithfulness: 0.85
+#   relevance: 0.70
+#   precision: 0.60
+#   context_relevance: 0.60
+#   recall: 0.70

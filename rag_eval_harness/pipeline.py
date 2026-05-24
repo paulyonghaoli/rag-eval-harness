@@ -12,15 +12,15 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from tqdm import tqdm
 
-from evaluator.clustering import cluster_failures, ClusterSummary
-from evaluator.embeddings import Embedder
-from evaluator.context_relevance import score_context_relevance
-from evaluator.faithfulness import score_faithfulness_detailed
-from evaluator.nli import NLIScorer
-from evaluator.precision import score_context_precision
-from evaluator.recall import score_context_recall
-from evaluator.relevance import score_answer_relevance
-from evaluator.types import EvalRecord, Scores, ScoredRecord
+from rag_eval_harness.clustering import cluster_failures, ClusterSummary
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.context_relevance import score_context_relevance
+from rag_eval_harness.faithfulness import score_faithfulness_detailed
+from rag_eval_harness.nli import NLIScorer
+from rag_eval_harness.precision import score_context_precision
+from rag_eval_harness.recall import score_context_recall
+from rag_eval_harness.relevance import score_answer_relevance
+from rag_eval_harness.types import EvalRecord, Scores, ScoredRecord
 
 
 def _validate_record(raw: dict, line_num: int) -> EvalRecord:

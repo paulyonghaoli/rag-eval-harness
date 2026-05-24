@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from evaluator.embeddings import Embedder
-from evaluator.recall import score_context_recall
+from rag_eval_harness.embeddings import Embedder
+from rag_eval_harness.recall import score_context_recall
 
 
 def test_recall_empty_contexts(embedder: Embedder) -> None:

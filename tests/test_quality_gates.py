@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from evaluator.pipeline import compute_summary, load_baseline_means, run_evaluation
-from evaluator.types import Scores, ScoredRecord
+from rag_eval_harness.pipeline import compute_summary, load_baseline_means, run_evaluation
+from rag_eval_harness.types import Scores, ScoredRecord
 
 
 def _record(q: str, faith: float, rel: float) -> ScoredRecord:

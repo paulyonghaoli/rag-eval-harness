@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from evaluator.pipeline import load_jsonl
+from rag_eval_harness.pipeline import load_jsonl
 
 
 def _write_jsonl(tmp_path: Path, records: list) -> Path:
