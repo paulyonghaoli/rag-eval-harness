@@ -69,14 +69,10 @@ async def _async_judge_claim(
         )
         return _parse_judge_verdict(response.choices[0].message.content.strip())
     except Exception as exc:
-        # Re-raise configuration errors so _batch_llm_judge can surface them clearly.
-        # Only swallow transient per-request failures (rate limits, timeouts, etc.).
-        try:
-            from openai import AuthenticationError, PermissionDeniedError
-            if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
-                raise
-        except ImportError:
-            pass
+        # Re-raise auth/permission errors so _batch_llm_judge can surface them.
+        # Transient per-request failures (rate limits, timeouts) return None for cosine fallback.
+        if type(exc).__name__ in ("AuthenticationError", "PermissionDeniedError"):
+            raise
         return None
 
 
@@ -159,10 +155,10 @@ def score_faithfulness_detailed(
     verdicts: List[ClaimVerdict] = []
 
     if nli_scorer is not None:
-        # NLI path: no cosine fallback needed, skip embedding computation entirely.
-        for claim in claims:
-            scores = nli_scorer.entailment_scores(context_sentences, claim)
-            confidence = float(scores.max())
+        # NLI path: batch all (premise, hypothesis) pairs into one forward pass.
+        matrix = nli_scorer.entailment_matrix(context_sentences, claims)
+        for i, claim in enumerate(claims):
+            confidence = float(matrix[i].max())
             verdicts.append(ClaimVerdict(
                 claim=claim, supported=confidence >= 0.5, confidence=confidence,
             ))
@@ -179,7 +175,9 @@ def score_faithfulness_detailed(
                 supported_list = asyncio.run(
                     _batch_llm_judge(claims, contexts, similarity, threshold, openai_api_key)
                 )
-            except RuntimeError:
+            except RuntimeError as exc:
+                if "This event loop is already running" not in str(exc):
+                    raise
                 supported_list = [float(similarity[i].max()) >= threshold for i in range(len(claims))]
             verdicts = [ClaimVerdict(claim=c, supported=s) for c, s in zip(claims, supported_list)]
         else:

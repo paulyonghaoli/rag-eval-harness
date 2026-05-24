@@ -3,7 +3,7 @@ Minimal Python API example for rag-eval-harness.
 Run: python quickstart.py
 """
 from pathlib import Path
-from rag_eval_harness import Embedder, run_evaluation
+from rag_eval_harness import run_evaluation
 from rag_eval_harness.data import sample_eval_set
 
 config = {

@@ -76,7 +76,7 @@ def main() -> None:
             file=sys.stderr,
         )
 
-    if args.baseline_scores and args.min_delta_faithfulness is not None:
+    elif args.baseline_scores and args.min_delta_faithfulness is not None:
         baseline = load_baseline_means(Path(args.baseline_scores))
         current = (summary["metrics"].get("faithfulness") or {}).get("mean", 0.0)
         base = baseline.get("faithfulness", 0.0)
@@ -89,5 +89,3 @@ def main() -> None:
             sys.exit(1)
 
 
-if __name__ == "__main__":
-    main()

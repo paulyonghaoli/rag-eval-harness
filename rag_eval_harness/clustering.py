@@ -75,7 +75,7 @@ def cluster_failures(
 
     summaries: List[ClusterSummary] = []
     for cluster_id in sorted(set(labels)):
-        indices = [i for i, lbl in enumerate(labels) if lbl == cluster_id]
+        indices = np.where(labels == cluster_id)[0]
         mean_scores = {
             dim: float(np.mean(
                 [v for i in indices if (v := getattr(records[i].scores, dim)) is not None] or [0.0]

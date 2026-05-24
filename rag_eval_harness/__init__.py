@@ -7,7 +7,7 @@ from rag_eval_harness.pipeline import (
     run_evaluation,
     write_jsonl,
 )
-from rag_eval_harness.faithfulness import score_faithfulness_detailed
+from rag_eval_harness.faithfulness import score_faithfulness, score_faithfulness_detailed
 from rag_eval_harness.relevance import score_answer_relevance
 from rag_eval_harness.precision import score_context_precision
 from rag_eval_harness.recall import score_context_recall
@@ -16,7 +16,11 @@ from rag_eval_harness.embeddings import Embedder
 from rag_eval_harness.nli import NLIScorer
 from rag_eval_harness.types import ClaimVerdict, EvalRecord, Scores, ScoredRecord
 
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import version as _version
+    __version__ = _version("rag-eval-harness")
+except Exception:
+    __version__ = "0.0.0.dev0"
 
 __all__ = [
     # Pipeline
@@ -27,6 +31,7 @@ __all__ = [
     "write_jsonl",
     # Individual scorers
     "score_faithfulness_detailed",
+    "score_faithfulness",
     "score_answer_relevance",
     "score_context_precision",
     "score_context_recall",

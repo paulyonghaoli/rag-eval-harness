@@ -182,9 +182,8 @@ def build_report(
     records: List[ScoredRecord],
     clusters: List[ClusterSummary],
 ) -> None:
-    dims = _DIMS
     lines: List[str] = ["# RAG Evaluation Report", ""]
-    for dim in dims:
+    for dim in _DIMS:
         values = [v for r in records if (v := getattr(r.scores, dim)) is not None]
         lines += [f"## {dim.replace('_', ' ').title()}", f"- Mean ± std: {_mean_std(values)}", ""]
 
