@@ -77,6 +77,21 @@ class NLIScorer:
         probs = exp / exp.sum(axis=1, keepdims=True)
         return probs[:, self.entailment_idx]
 
+    def entailment_matrix(self, premises: list[str], hypotheses: list[str]) -> np.ndarray:
+        """Return (n_hypotheses, n_premises) entailment probability matrix.
+
+        Batches all (premise, hypothesis) pairs into a single model.predict call —
+        faster than calling entailment_scores() once per hypothesis because
+        CrossEncoder forward passes have significant fixed overhead per call.
+        """
+        if not hypotheses or not premises:
+            return np.zeros((len(hypotheses), len(premises)))
+        pairs = [(p, h) for h in hypotheses for p in premises]
+        logits = self.model.predict(pairs)
+        exp = np.exp(logits - logits.max(axis=1, keepdims=True))
+        probs = (exp / exp.sum(axis=1, keepdims=True))[:, self.entailment_idx]
+        return probs.reshape(len(hypotheses), len(premises))
+
     def is_entailed(self, premises: list[str], hypothesis: str, threshold: float = 0.5) -> bool:
         """True if any premise entails the hypothesis above threshold."""
         if not premises:
